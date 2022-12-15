@@ -2,7 +2,8 @@ package midground
 
 import "time"
 
-type Schedule struct {
-	Delay       time.Duration
-	RepeatAfter time.Duration
+// schedule is used by Process to track its schedule.
+type schedule struct {
+	delay       time.Duration
+	repeatAfter time.Duration
 }

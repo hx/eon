@@ -6,11 +6,19 @@ import (
 	"time"
 )
 
+// action is a unit of work a Scheduler performs on itself when it interrupts its run loop.
 type action struct {
+	// work is the work to be performed
 	work func()
+
+	// done is returned by Scheduler.interrupt, and can be used to wait for the action to complete, if the caller needs
+	// to.
 	done chan struct{}
 }
 
+// A Scheduler is the top level Dispatcher for a group of processes.
+//
+// A zero value is not usable. Use NewScheduler or NewSchedulerContext instead.
 type Scheduler struct {
 	*Dispatcher
 	ctx       context.Context
@@ -21,8 +29,14 @@ type Scheduler struct {
 	clock     clock
 }
 
+// NewScheduler returns a ready-to-use Scheduler. It starts a scheduling goroutine that will run for the duration of the
+// process.
+//
+// For a Scheduler that can be discarded, use NewSchedulerContext instead.
 func NewScheduler() *Scheduler { return NewSchedulerContext(context.Background()) }
 
+// NewSchedulerContext returns a ready-to-use Scheduler. It starts a scheduling goroutine that will run until the given
+// context expires.
 func NewSchedulerContext(ctx context.Context) (scheduler *Scheduler) {
 	scheduler = &Scheduler{
 		clock:     systemClock{},
@@ -38,6 +52,7 @@ func NewSchedulerContext(ctx context.Context) (scheduler *Scheduler) {
 	return
 }
 
+// loop is the main run loop for its receiver. It runs in a goroutine started by the constructor, NewSchedulerContext.
 func (s *Scheduler) loop() {
 	var now time.Time
 	for s.ctx.Err() == nil {
@@ -54,16 +69,28 @@ func (s *Scheduler) loop() {
 	// TODO: wait for running processes to finish? add indirection to consumption of <-s.ctx.Done() in idle()
 }
 
-func (s *Scheduler) schedule(ctx context.Context, owner *Dispatcher, concurrency int, schedule *Schedule, wait bool, jobs []*Job) {
+// interrupt runs the given function on the receiver's run loop. It will deadlock if called recursively. To wait for the
+// given function to complete, read from the returned channel.
+func (s *Scheduler) interrupt(fn func()) (done chan struct{}) {
+	done = make(chan struct{})
+	<-s.actions <- action{fn, done}
+	return
+}
+
+// schedule is used by Dispatcher to scheduler new jobs.
+func (s *Scheduler) schedule(ctx context.Context, owner *Dispatcher, concurrency int, schedule *schedule, wait bool, jobs []*Job) {
 	if s.ctx.Err() != nil {
-		panic("root context done")
+		panic("root context expired")
 	}
 	if len(jobs) == 0 {
 		return
 	}
-	b := s.makeBatch(ctx, owner, concurrency, schedule, jobs)
+	b := newBatch(ctx, owner, concurrency, schedule, s.clock.Now(), jobs)
 	<-s.interrupt(func() {
 		for _, process := range b.processes {
+			if process.Job.Supersedes != nil {
+				s.removeSuperseded(process.Job.Supersedes(s.queuedProcesses()), process)
+			}
 			s.scheduleProcess(process)
 		}
 	})
@@ -73,28 +100,32 @@ func (s *Scheduler) schedule(ctx context.Context, owner *Dispatcher, concurrency
 	}
 }
 
+// reschedule is invoked after a process has ended if it has a schedule with a positive repeatAfter value. It must be
+// run from an interrupt function.
 func (s *Scheduler) reschedule(process *Process) {
-	delay := process.schedule.RepeatAfter
-	schedule := &Schedule{
-		Delay:       delay,
-		RepeatAfter: delay,
+	delay := process.schedule.repeatAfter
+	schedule := &schedule{
+		delay:       delay,
+		repeatAfter: delay,
 	}
-	b := s.makeBatch(process.ctx, process.dispatcher, 1, schedule, []*Job{process.Job})
+	b := newBatch(process.ctx, process.dispatcher, 1, schedule, s.clock.Now(), []*Job{process.Job})
 	s.scheduleProcess(b.processes[0])
 	s.subscribeToContext(process.ctx, b)
 }
 
+// scheduleProcess adds the given process to the receiver's schedule. It must be run from an interrupt function.
 func (s *Scheduler) scheduleProcess(process *Process) {
 	s.scheduled.Push(process)
 	process.dispatcher.notify(func(d Delegate) { d.JobScheduled(process) })
 }
 
+// subscribeToContext starts a goroutine that cancels the given batch if the given context expires.
 func (s *Scheduler) subscribeToContext(ctx context.Context, b *batch) {
 	// TODO: make this configurable, since it's potentially so expensive/messy
 	if ctx != nil {
 		go func() {
 			select {
-			case <-b.doneChan:
+			case <-b.doneChan: // TODO: It's not necessary to wait for all jobs to finish. We only need to wait for them to start.
 			case <-ctx.Done():
 				s.interrupt(func() {
 					for _, job := range b.processes {
@@ -108,35 +139,8 @@ func (s *Scheduler) subscribeToContext(ctx context.Context, b *batch) {
 	}
 }
 
-func (s *Scheduler) makeBatch(ctx context.Context, owner *Dispatcher, concurrency int, schedule *Schedule, jobs []*Job) (b *batch) {
-	var runAt = s.clock.Now()
-	if schedule != nil {
-		runAt = runAt.Add(schedule.Delay)
-	}
-	if concurrency == 0 {
-		concurrency = len(jobs)
-	}
-	b = &batch{
-		concurrency: concurrency,
-		doneChan:    make(chan struct{}),
-	}
-	b.processes = make([]*Process, len(jobs))
-	for i, job := range jobs {
-		process := &Process{
-			Job:        job,
-			schedule:   schedule,
-			batch:      b,
-			batchIndex: i,
-			runAt:      runAt,
-			state:      stateScheduled,
-			ctx:        ctx,
-			dispatcher: owner,
-		}
-		b.processes[i] = process
-	}
-	return
-}
-
+// idle is used by the run loop to wait for something to happen; either a scheduled job falls due, the loop is
+// interrupted by the interrupt method, or the receiver's context expires.
 func (s *Scheduler) idle(now time.Time) {
 	var (
 		job       = s.scheduled.Peek()
@@ -168,10 +172,9 @@ func (s *Scheduler) idle(now time.Time) {
 	close(act.done)
 }
 
+// start runs the given Process, by first cancelling superseded processes, then running it in a new goroutine, which
+// also takes care of termination and rescheduling of repeated jobs.
 func (s *Scheduler) start(process *Process) {
-	if process.Job.Supersedes != nil {
-		s.removeSuperseded(process.Job.Supersedes(s.queuedProcesses()), process)
-	}
 	s.running = append(s.running, process.Job)
 	process.state = stateRunning
 	process.dispatcher.notify(func(d Delegate) { d.JobStarting(process) })
@@ -186,17 +189,19 @@ func (s *Scheduler) start(process *Process) {
 		s.interrupt(func() {
 			util.Remove(&s.running, process.Job)
 			process.terminate(err)
-			if process.schedule != nil && process.ctx.Err() == nil && process.schedule.RepeatAfter > 0 {
+			if process.schedule != nil && process.schedule.repeatAfter > 0 && process.ctx.Err() == nil {
 				s.reschedule(process)
 			}
 		})
 	}()
 }
 
+// queuedProcesses returns a slice of all queued processes, including scheduled and blocked processes.
 func (s *Scheduler) queuedProcesses() []*Process {
 	return append(s.blocked.Slice(), s.scheduled.Slice()...)
 }
 
+// removeSuperseded is used by Scheduler.schedule to remove superseded processes from the schedule.
 func (s *Scheduler) removeSuperseded(supersededProcesses []*Process, replacement *Process) {
 	if len(supersededProcesses) == 0 {
 		return
@@ -209,14 +214,9 @@ func (s *Scheduler) removeSuperseded(supersededProcesses []*Process, replacement
 	}
 }
 
-func (s *Scheduler) interrupt(fn func()) (done chan struct{}) {
-	done = make(chan struct{})
-	<-s.actions <- action{fn, done}
-	return
-}
-
+// findRunnableProcess is used by the run loop to look for processes to schedule.
 func (s *Scheduler) findRunnableProcess(now time.Time) (process *Process) {
-	// search blocked
+	// search blocked processes first
 	for process = range s.blocked {
 		readiness := process.readiness(s.queuedProcesses())
 		if readiness.isDiscarded {
@@ -234,7 +234,7 @@ func (s *Scheduler) findRunnableProcess(now time.Time) (process *Process) {
 		}
 	}
 
-	// check waiting
+	// if nothing is blocked, look for scheduled process that are due or past due
 	for {
 		process = s.scheduled.Peek()
 		if process == nil {
@@ -261,6 +261,7 @@ func (s *Scheduler) findRunnableProcess(now time.Time) (process *Process) {
 	}
 }
 
+// cancel removes and terminates a process that hasn't started yet.
 func (s *Scheduler) cancel(process *Process, err error) {
 	if process.IsBlocked() {
 		s.blocked.Remove(process)
@@ -268,16 +269,4 @@ func (s *Scheduler) cancel(process *Process, err error) {
 		s.scheduled.Remove(process)
 	}
 	process.terminate(err)
-}
-
-func (s *Scheduler) nextScheduledProcess(now time.Time) (process *Process, runNow bool) {
-	process = s.scheduled.Peek()
-	if process == nil {
-		return
-	}
-	runNow = now.Before(process.runAt)
-	if runNow {
-		s.scheduled.Pop()
-	}
-	return
 }

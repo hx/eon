@@ -1,7 +1,7 @@
 package midground
 
 // Readiness is the type returned by Job.Readiness that indicates whether a job is ready to run. Its zero value is
-// equivalent to Ready(). Other values can be declared with Blocked() and Discard().
+// equivalent to Ready(). Other values can be declared with Blocked(blockers...) and Discard().
 type Readiness struct {
 	isDiscarded bool
 	blockers    []*Process

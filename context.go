@@ -2,6 +2,7 @@ package midground
 
 import "context"
 
+// A Context is created for every running Process.
 type Context struct {
 	*Dispatcher
 	ctx context.Context
