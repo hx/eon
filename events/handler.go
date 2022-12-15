@@ -10,6 +10,12 @@ type handlerFuncs[T any] struct {
 	mutex sync.RWMutex
 }
 
+// Handler is a midground.Delegate implementation that allows discreet event handlers to be added and removed at any
+// time.
+//
+// Handler functions are run in the order in which they were added.
+//
+// A pointer to a zero Handler is ready to use.
 type Handler struct {
 	scheduled  handlerFuncs[func(process *midground.Process)]
 	blocked    handlerFuncs[func(process *midground.Process, blockers []*midground.Process)]
@@ -35,22 +41,32 @@ func addHandler[T any](handler T, collection *handlerFuncs[T]) (remove func()) {
 	}
 }
 
+// OnScheduled adds a handler for when a midground.Process is scheduled. The returned remove function can be used to
+// remove the handler.
 func (h *Handler) OnScheduled(fn func(process *midground.Process)) (remove func()) {
 	return addHandler(fn, &h.scheduled)
 }
 
+// OnBlocked adds a handler for when a midground.Process is blocked. The returned remove function can be used to
+// remove the handler.
 func (h *Handler) OnBlocked(fn func(process *midground.Process, blockers []*midground.Process)) (remove func()) {
 	return addHandler(fn, &h.blocked)
 }
 
+// OnStarting adds a handler for when a midground.Process is starting. The returned remove function can be used to
+// remove the handler.
 func (h *Handler) OnStarting(fn func(process *midground.Process)) (remove func()) {
 	return addHandler(fn, &h.starting)
 }
 
+// OnProgressed adds a handler for when a midground.Process progresses. The returned remove function can be used to
+// remove the handler.
 func (h *Handler) OnProgressed(fn func(process *midground.Process, payload any)) (remove func()) {
 	return addHandler(fn, &h.progressed)
 }
 
+// OnEnded adds a handler for when a midground.Process ends. The returned remove function can be used to
+// remove the handler.
 func (h *Handler) OnEnded(fn func(process *midground.Process, err error)) (remove func()) {
 	return addHandler(fn, &h.ended)
 }

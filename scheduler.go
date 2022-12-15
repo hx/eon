@@ -24,7 +24,7 @@ type Scheduler struct {
 	ctx       context.Context
 	scheduled *util.Heap[*Process]
 	blocked   util.Set[*Process]
-	running   []*Job
+	running   []*Job // TODO: consider a util.BlockingHeap instead so that loop can wait for all jobs to finish
 	actions   chan chan action
 	clock     clock
 }

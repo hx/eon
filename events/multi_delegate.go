@@ -2,6 +2,7 @@ package events
 
 import "github.com/hx/midground"
 
+// MultiDelegate is a midground.Delegate implementation that re-sends notifications to multiple delegates.
 type MultiDelegate []midground.Delegate
 
 func (m MultiDelegate) JobScheduled(process *midground.Process) {
