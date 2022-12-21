@@ -7,7 +7,7 @@ import (
 
 // scheduler is used to avoid a two-way dependency between Scheduler and Dispatcher. It's probably unnecessary.
 type scheduler interface {
-	schedule(ctx context.Context, owner *Dispatcher, concurrency int, schedule *schedule, wait bool, jobs []*Job)
+	schedule(ctx context.Context, owner *Dispatcher, concurrency int, schedule *schedule, jobs []*Job) <-chan struct{}
 }
 
 // A Dispatcher can be used to schedule new jobs, and track their progress through its Delegate.
@@ -32,45 +32,28 @@ type Dispatcher struct {
 
 // Run schedules the given jobs to run one after the other, and blocks until they have all ended.
 //
-// A failing job will not prevent subsequent jobs from running. To halt a batch of jobs on error, use RunContext with
+// A failing job will not prevent subsequent jobs from running. To halt a batch of jobs on error, use Run with
 // a context that can be cancelled by Delegate.JobEnded when it receives an error.
-func (d *Dispatcher) Run(jobs ...*Job) {
-	d.RunContext(nil, jobs...)
-}
-
-// RunContext is identical to Run, but accepts a context.Context that can be used to cancel unstarted and running
-// processes.
 //
 // Internally, handling each context requires an extra goroutine to live from when the given batch is scheduled until
 // the last job starts. If you don't need to be able to stop your jobs, leave ctx as nil to save the cost of a
 // goroutine.
-func (d *Dispatcher) RunContext(ctx context.Context, jobs ...*Job) {
-	d.scheduler.schedule(ctx, d, 1, nil, true, jobs)
+func (d *Dispatcher) Run(ctx context.Context, jobs ...*Job) {
+	d.Parallel(ctx, 1, jobs...)
 }
 
 // Parallel is identical to Run, but allows maximum concurrency to be specified for the batch.
-func (d *Dispatcher) Parallel(concurrency int, jobs ...*Job) {
-	d.ParallelContext(nil, concurrency, jobs...)
-}
-
-// ParallelContext is identical to RunContext, but allows maximum concurrency to be specified for the batch.
-func (d *Dispatcher) ParallelContext(ctx context.Context, concurrency int, jobs ...*Job) {
-	d.scheduler.schedule(ctx, d, concurrency, nil, true, jobs)
+func (d *Dispatcher) Parallel(ctx context.Context, concurrency int, jobs ...*Job) {
+	<-d.scheduler.schedule(ctx, d, concurrency, nil, jobs)
 }
 
 // Schedule schedules a job to be run in the background, with an optional delay. A positive repeatAfter value will
 // reschedule the job upon its completion with a new delay.
-func (d *Dispatcher) Schedule(delay time.Duration, repeatAfter time.Duration, job *Job) {
-	d.ScheduleContext(nil, delay, repeatAfter, job)
-}
-
-// ScheduleContext is identical to Schedule, but accepts a context.Context that can be used to cancel unstarted and
-// running processes.
 //
 // Internally, handling each context requires an extra goroutine to live from when the given job is scheduled until
 // it starts. If you don't need to be able to stop your job, leave ctx as nil to save the cost of a goroutine.
-func (d *Dispatcher) ScheduleContext(ctx context.Context, delay time.Duration, repeatAfter time.Duration, job *Job) {
-	d.scheduler.schedule(ctx, d, 1, &schedule{delay, repeatAfter}, false, []*Job{job})
+func (d *Dispatcher) Schedule(ctx context.Context, delay, repeatAfter time.Duration, job *Job) {
+	d.scheduler.schedule(ctx, d, 1, &schedule{delay, repeatAfter}, []*Job{job})
 }
 
 /**

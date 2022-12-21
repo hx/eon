@@ -27,6 +27,10 @@ func newBatch(ctx context.Context, owner *Dispatcher, concurrency int, schedule 
 		concurrency: concurrency,
 		doneChan:    make(chan struct{}),
 	}
+	if len(jobs) == 0 {
+		close(b.doneChan)
+		return
+	}
 	b.processes = make([]*Process, len(jobs))
 	for i, job := range jobs {
 		process := &Process{

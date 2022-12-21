@@ -18,7 +18,7 @@ type action struct {
 
 // A Scheduler is the top level Dispatcher for a group of processes.
 //
-// A zero value is not usable. Use NewScheduler or NewSchedulerContext instead.
+// A zero value is not usable. Use NewScheduler instead.
 type Scheduler struct {
 	*Dispatcher
 	ctx       context.Context
@@ -29,15 +29,9 @@ type Scheduler struct {
 	clock     clock
 }
 
-// NewScheduler returns a ready-to-use Scheduler. It starts a scheduling goroutine that will run for the duration of the
-// process.
-//
-// For a Scheduler that can be discarded, use NewSchedulerContext instead.
-func NewScheduler() *Scheduler { return NewSchedulerContext(context.Background()) }
-
-// NewSchedulerContext returns a ready-to-use Scheduler. It starts a scheduling goroutine that will run until the given
+// NewScheduler returns a ready-to-use Scheduler. It starts a scheduling goroutine that will run until the given
 // context expires.
-func NewSchedulerContext(ctx context.Context) (scheduler *Scheduler) {
+func NewScheduler(ctx context.Context) (scheduler *Scheduler) {
 	scheduler = &Scheduler{
 		clock:     systemClock{},
 		actions:   make(chan chan action),
@@ -52,7 +46,7 @@ func NewSchedulerContext(ctx context.Context) (scheduler *Scheduler) {
 	return
 }
 
-// loop is the main run loop for its receiver. It runs in a goroutine started by the constructor, NewSchedulerContext.
+// loop is the main run loop for its receiver. It runs in a goroutine started by the constructor, NewScheduler.
 func (s *Scheduler) loop() {
 	var now time.Time
 	for s.ctx.Err() == nil {
@@ -78,26 +72,23 @@ func (s *Scheduler) interrupt(fn func()) (done chan struct{}) {
 }
 
 // schedule is used by Dispatcher to scheduler new jobs.
-func (s *Scheduler) schedule(ctx context.Context, owner *Dispatcher, concurrency int, schedule *schedule, wait bool, jobs []*Job) {
+func (s *Scheduler) schedule(ctx context.Context, owner *Dispatcher, concurrency int, schedule *schedule, jobs []*Job) <-chan struct{} {
 	if s.ctx.Err() != nil {
 		panic("root context expired")
 	}
-	if len(jobs) == 0 {
-		return
-	}
 	b := newBatch(ctx, owner, concurrency, schedule, s.clock.Now(), jobs)
-	<-s.interrupt(func() {
-		for _, process := range b.processes {
-			if process.Job.Supersedes != nil {
-				s.removeSuperseded(process.Job.Supersedes(s.queuedProcesses()), process)
+	if len(jobs) > 0 {
+		<-s.interrupt(func() {
+			for _, process := range b.processes {
+				if process.Job.Supersedes != nil {
+					s.removeSuperseded(process.Job.Supersedes(s.queuedProcesses()), process)
+				}
+				s.scheduleProcess(process)
 			}
-			s.scheduleProcess(process)
-		}
-	})
-	s.subscribeToContext(ctx, b)
-	if wait {
-		<-b.doneChan
+		})
+		s.subscribeToContext(ctx, b)
 	}
+	return b.doneChan
 }
 
 // reschedule is invoked after a process has ended if it has a schedule with a positive repeatAfter value. It must be
