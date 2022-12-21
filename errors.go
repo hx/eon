@@ -1,4 +1,4 @@
-package midground
+package eon
 
 // ErrSuperseded is passed to Delegate.JobEnded when a Process is by Replacement's Job.Supersedes function before it can
 // start.

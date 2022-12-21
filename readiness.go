@@ -1,4 +1,4 @@
-package midground
+package eon
 
 // Readiness is the type returned by Job.Readiness that indicates whether a job is ready to run. Its zero value is
 // equivalent to Ready(). Other values can be declared with Blocked(blockers...) and Discard().

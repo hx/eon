@@ -2,18 +2,18 @@ package events_test
 
 import (
 	"fmt"
-	"github.com/hx/midground"
-	"github.com/hx/midground/events"
+	"github.com/hx/eon"
+	"github.com/hx/eon/events"
 	"testing"
 )
 
 type customDelegate struct{}
 
-func (d customDelegate) JobScheduled(process *midground.Process)                              {}
-func (d customDelegate) JobBlocked(process *midground.Process, blockers []*midground.Process) {}
-func (d customDelegate) JobStarting(process *midground.Process)                               { _ = fmt.Sprintf("%#v", struct{}{}) }
-func (d customDelegate) JobProgressed(process *midground.Process, payload any)                {}
-func (d customDelegate) JobEnded(process *midground.Process, err error)                       {}
+func (d customDelegate) JobScheduled(process *eon.Process)                        {}
+func (d customDelegate) JobBlocked(process *eon.Process, blockers []*eon.Process) {}
+func (d customDelegate) JobStarting(process *eon.Process)                         { _ = fmt.Sprintf("%#v", struct{}{}) }
+func (d customDelegate) JobProgressed(process *eon.Process, payload any)          {}
+func (d customDelegate) JobEnded(process *eon.Process, err error)                 {}
 
 // -benchtime=4s -count 3
 // goos: darwin
@@ -34,13 +34,13 @@ func (d customDelegate) JobEnded(process *midground.Process, err error)         
 // identical to that of composed_delegate's.
 func BenchmarkDelegation(b *testing.B) {
 	composed := &events.Delegate{
-		Starting: func(process *midground.Process) { _ = fmt.Sprintf("%#v", struct{}{}) },
+		Starting: func(process *eon.Process) { _ = fmt.Sprintf("%#v", struct{}{}) },
 	}
 	handler := new(events.Handler)
-	handler.OnStarting(func(process *midground.Process) { _ = fmt.Sprintf("%#v", struct{}{}) })
+	handler.OnStarting(func(process *eon.Process) { _ = fmt.Sprintf("%#v", struct{}{}) })
 	for _, delegate := range []struct {
 		name string
-		d    midground.Delegate
+		d    eon.Delegate
 	}{
 		{"composed_delegate", composed},
 		{"event_handler", handler},
@@ -49,7 +49,7 @@ func BenchmarkDelegation(b *testing.B) {
 		delegate := delegate
 		b.Run(delegate.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				delegate.d.JobStarting(&midground.Process{})
+				delegate.d.JobStarting(&eon.Process{})
 			}
 		})
 	}

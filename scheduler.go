@@ -1,8 +1,8 @@
-package midground
+package eon
 
 import (
 	"context"
-	"github.com/hx/midground/util"
+	"github.com/hx/eon/util"
 	"time"
 )
 

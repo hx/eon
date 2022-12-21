@@ -1,4 +1,4 @@
-package midground
+package eon
 
 // A Job is a single unit of work. A Job becomes a Process when it is scheduled to run with a Scheduler or Context.
 //

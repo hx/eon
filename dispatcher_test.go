@@ -1,4 +1,4 @@
-package midground
+package eon
 
 import (
 	"fmt"

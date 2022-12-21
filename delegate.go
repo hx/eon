@@ -1,4 +1,4 @@
-package midground
+package eon
 
 // Delegate implementations can be assigned to any Dispatcher (i.e. a Scheduler or a Context), to receive notifications
 // about changes in Process state.

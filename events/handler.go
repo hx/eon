@@ -1,7 +1,7 @@
 package events
 
 import (
-	"github.com/hx/midground"
+	"github.com/hx/eon"
 	"sync"
 )
 
@@ -17,11 +17,11 @@ type handlerFuncs[T any] struct {
 //
 // A pointer to a zero Handler is ready to use.
 type Handler struct {
-	scheduled  handlerFuncs[func(process *midground.Process)]
-	blocked    handlerFuncs[func(process *midground.Process, blockers []*midground.Process)]
-	starting   handlerFuncs[func(process *midground.Process)]
-	progressed handlerFuncs[func(process *midground.Process, payload any)]
-	ended      handlerFuncs[func(process *midground.Process, err error)]
+	scheduled  handlerFuncs[func(process *eon.Process)]
+	blocked    handlerFuncs[func(process *eon.Process, blockers []*eon.Process)]
+	starting   handlerFuncs[func(process *eon.Process)]
+	progressed handlerFuncs[func(process *eon.Process, payload any)]
+	ended      handlerFuncs[func(process *eon.Process, err error)]
 }
 
 func addHandler[T any](handler T, collection *handlerFuncs[T]) (remove func()) {
@@ -43,35 +43,35 @@ func addHandler[T any](handler T, collection *handlerFuncs[T]) (remove func()) {
 
 // OnScheduled adds a handler for when a midground.Process is scheduled. The returned remove function can be used to
 // remove the handler.
-func (h *Handler) OnScheduled(fn func(process *midground.Process)) (remove func()) {
+func (h *Handler) OnScheduled(fn func(process *eon.Process)) (remove func()) {
 	return addHandler(fn, &h.scheduled)
 }
 
 // OnBlocked adds a handler for when a midground.Process is blocked. The returned remove function can be used to
 // remove the handler.
-func (h *Handler) OnBlocked(fn func(process *midground.Process, blockers []*midground.Process)) (remove func()) {
+func (h *Handler) OnBlocked(fn func(process *eon.Process, blockers []*eon.Process)) (remove func()) {
 	return addHandler(fn, &h.blocked)
 }
 
 // OnStarting adds a handler for when a midground.Process is starting. The returned remove function can be used to
 // remove the handler.
-func (h *Handler) OnStarting(fn func(process *midground.Process)) (remove func()) {
+func (h *Handler) OnStarting(fn func(process *eon.Process)) (remove func()) {
 	return addHandler(fn, &h.starting)
 }
 
 // OnProgressed adds a handler for when a midground.Process progresses. The returned remove function can be used to
 // remove the handler.
-func (h *Handler) OnProgressed(fn func(process *midground.Process, payload any)) (remove func()) {
+func (h *Handler) OnProgressed(fn func(process *eon.Process, payload any)) (remove func()) {
 	return addHandler(fn, &h.progressed)
 }
 
 // OnEnded adds a handler for when a midground.Process ends. The returned remove function can be used to
 // remove the handler.
-func (h *Handler) OnEnded(fn func(process *midground.Process, err error)) (remove func()) {
+func (h *Handler) OnEnded(fn func(process *eon.Process, err error)) (remove func()) {
 	return addHandler(fn, &h.ended)
 }
 
-func (h *Handler) JobScheduled(process *midground.Process) {
+func (h *Handler) JobScheduled(process *eon.Process) {
 	h.scheduled.mutex.RLock()
 	for _, fn := range h.scheduled.funcs {
 		(*fn)(process)
@@ -79,7 +79,7 @@ func (h *Handler) JobScheduled(process *midground.Process) {
 	h.scheduled.mutex.RUnlock()
 }
 
-func (h *Handler) JobBlocked(process *midground.Process, blockers []*midground.Process) {
+func (h *Handler) JobBlocked(process *eon.Process, blockers []*eon.Process) {
 	h.blocked.mutex.RLock()
 	for _, fn := range h.blocked.funcs {
 		(*fn)(process, blockers)
@@ -87,7 +87,7 @@ func (h *Handler) JobBlocked(process *midground.Process, blockers []*midground.P
 	h.blocked.mutex.RUnlock()
 }
 
-func (h *Handler) JobStarting(process *midground.Process) {
+func (h *Handler) JobStarting(process *eon.Process) {
 	h.starting.mutex.RLock()
 	for _, fn := range h.starting.funcs {
 		(*fn)(process)
@@ -95,7 +95,7 @@ func (h *Handler) JobStarting(process *midground.Process) {
 	h.starting.mutex.RUnlock()
 }
 
-func (h *Handler) JobProgressed(process *midground.Process, payload any) {
+func (h *Handler) JobProgressed(process *eon.Process, payload any) {
 	h.progressed.mutex.RLock()
 	for _, fn := range h.progressed.funcs {
 		(*fn)(process, payload)
@@ -103,7 +103,7 @@ func (h *Handler) JobProgressed(process *midground.Process, payload any) {
 	h.progressed.mutex.RUnlock()
 }
 
-func (h *Handler) JobEnded(process *midground.Process, err error) {
+func (h *Handler) JobEnded(process *eon.Process, err error) {
 	h.ended.mutex.RLock()
 	for _, fn := range h.ended.funcs {
 		(*fn)(process, err)
