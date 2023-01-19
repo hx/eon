@@ -227,14 +227,14 @@ func (s *Scheduler) findRunnableProcess(now time.Time) (process *Process) {
 
 	// if nothing is blocked, look for scheduled process that are due or past due
 	for {
-		process = s.scheduled.Peek()
-		if process == nil {
-			return
-		}
-		if process.runAt.After(now) {
+		if s.scheduled.Len() == 0 {
 			return nil
 		}
-		s.scheduled.Pop()
+		process = s.scheduled.Pop()
+		if process.runAt.After(now) {
+			s.scheduled.Push(process)
+			return nil
+		}
 		readiness := process.readiness(s.queuedProcesses())
 		if readiness.isDiscarded {
 			// discard
