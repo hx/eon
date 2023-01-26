@@ -12,3 +12,18 @@ func (e ErrSuperseded) Error() string { return "superseded" }
 type ErrDiscarded struct{}
 
 func (e ErrDiscarded) Error() string { return "discarded" }
+
+// ErrContextExpired is passed to Delegate.JobEnded when a Process's context expires before it starts.
+type ErrContextExpired struct {
+	error
+}
+
+func (e ErrContextExpired) Unwrap() error { return e.error }
+
+// ErrSchedulerContextExpired is passed to Delegate.JobEnded for every unstarted Process of a Scheduler whose context
+// has expired.
+type ErrSchedulerContextExpired struct {
+	ErrContextExpired
+}
+
+func (e ErrSchedulerContextExpired) Unwrap() error { return e.error }

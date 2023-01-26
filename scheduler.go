@@ -58,7 +58,7 @@ func (s *Scheduler) loop() {
 		}
 	}
 	for _, job := range s.queuedProcesses() {
-		s.cancel(job, s.ctx.Err())
+		s.cancel(job, ErrSchedulerContextExpired{ErrContextExpired{s.ctx.Err()}})
 	}
 	// TODO: wait for running processes to finish? add indirection to consumption of <-s.ctx.Done() in idle()
 }
@@ -113,21 +113,19 @@ func (s *Scheduler) scheduleProcess(process *Process) {
 // subscribeToContext starts a goroutine that cancels the given batch if the given context expires.
 func (s *Scheduler) subscribeToContext(ctx context.Context, b *batch) {
 	// TODO: make this configurable, since it's potentially so expensive/messy
-	if ctx != nil {
-		go func() {
-			select {
-			case <-b.doneChan: // TODO: It's not necessary to wait for all jobs to finish. We only need to wait for them to start.
-			case <-ctx.Done():
-				s.interrupt(func() {
-					for _, job := range b.processes {
-						if job.IsScheduled() || job.IsBlocked() {
-							s.cancel(job, ctx.Err())
-						}
+	go func() {
+		select {
+		case <-b.doneChan: // TODO: Wait for jobs to be started, instead of finished, which isn't necessary.
+		case <-ctx.Done():
+			s.interrupt(func() {
+				for _, job := range b.processes {
+					if job.IsScheduled() || job.IsBlocked() {
+						s.cancel(job, ErrContextExpired{ctx.Err()})
 					}
-				})
-			}
-		}()
-	}
+				}
+			})
+		}
+	}()
 }
 
 // idle is used by the run loop to wait for something to happen; either a scheduled job falls due, the loop is
@@ -209,6 +207,11 @@ func (s *Scheduler) removeSuperseded(supersededProcesses []*Process, replacement
 func (s *Scheduler) findRunnableProcess(now time.Time) (process *Process) {
 	// search blocked processes first
 	for process = range s.blocked {
+		if err := process.ctx.Err(); err != nil {
+			s.blocked.Remove(process)
+			process.terminate(ErrContextExpired{err})
+			continue
+		}
 		readiness := process.readiness(s.queuedProcesses())
 		if readiness.isDiscarded {
 			// discard
@@ -221,17 +224,20 @@ func (s *Scheduler) findRunnableProcess(now time.Time) (process *Process) {
 		} else {
 			// still blocked, do nothing
 			process.dispatcher.notify(func(d Delegate) { d.JobBlocked(process, readiness.blockers) })
-
 		}
 	}
 
-	// if nothing is blocked, look for scheduled process that are due or past due
+	// if nothing is blocked, look for scheduled processes that are due or past due
 	for {
 		if s.scheduled.Len() == 0 {
 			return nil
 		}
 		process = s.scheduled.Pop()
 		if process.runAt.After(now) {
+			if err := process.ctx.Err(); err != nil {
+				process.terminate(ErrContextExpired{err})
+				continue
+			}
 			s.scheduled.Push(process)
 			return nil
 		}
