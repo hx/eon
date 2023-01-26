@@ -172,6 +172,7 @@ func (s *Scheduler) start(process *Process) {
 			scheduler: s,
 			process:   process,
 		},
+		ctx: process.ctx,
 	}
 	go func() {
 		err := process.Job.Runner(ctx)
