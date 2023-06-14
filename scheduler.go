@@ -30,7 +30,12 @@ type Scheduler struct {
 }
 
 // NewScheduler returns a ready-to-use Scheduler. It starts a scheduling goroutine that will run until the given
-// context expires.
+// context expires, after which newly scheduled jobs will panic.
+//
+// In normal use, the given context should be [context.Background]. Expiring a Scheduler's context stops all schedule
+// processing, including that of running jobs. No more events will be emitted, including end-job events. Goroutines
+// trying to emit those events will freeze and leak. Only expire a Scheduler's context after a clean wrap-up of all
+// jobs, either in testing, or when forcing a process to shut down.
 func NewScheduler(ctx context.Context) (scheduler *Scheduler) {
 	scheduler = &Scheduler{
 		clock:     systemClock{},
