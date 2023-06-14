@@ -8,7 +8,7 @@ import (
 // BlockingHeap implements a min-heap for values of type T. It is identical to Heap, but also maintains a sync.WaitGroup
 // that unblocks when the heap has no members.
 //
-// This type isn't being used at the moment, but could be used to replace midground.Scheduler.running if we need to wait
+// This type isn't being used at the moment, but could be used to replace eon.Scheduler.running if we need to wait
 // for all its running jobs to complete.
 //
 // A zero BlockingHeap is not valid. Use NewBlockingHeap instead.
