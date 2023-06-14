@@ -58,7 +58,7 @@ func (s *Scheduler) loop() {
 		}
 	}
 	for _, job := range s.queuedProcesses() {
-		s.cancel(job, ErrSchedulerContextExpired{ErrContextExpired{s.ctx.Err()}})
+		s.cancel(job, ErrSchedulerContextExpired{ErrContextExpired{s.ctx}})
 	}
 	// TODO: wait for running processes to finish? add indirection to consumption of <-s.ctx.Done() in idle()
 }
@@ -120,7 +120,7 @@ func (s *Scheduler) subscribeToContext(ctx context.Context, b *batch) {
 			s.interrupt(func() {
 				for _, job := range b.processes {
 					if job.IsScheduled() || job.IsBlocked() {
-						s.cancel(job, ErrContextExpired{ctx.Err()})
+						s.cancel(job, ErrContextExpired{ctx})
 					}
 				}
 			})
@@ -176,6 +176,7 @@ func (s *Scheduler) start(process *Process) {
 	}
 	go func() {
 		err := process.Job.Runner(ctx)
+		// This will freeze if the scheduler's context is cancelled
 		s.interrupt(func() {
 			util.Remove(&s.running, process.Job)
 			process.terminate(err)
@@ -208,9 +209,9 @@ func (s *Scheduler) removeSuperseded(supersededProcesses []*Process, replacement
 func (s *Scheduler) findRunnableProcess(now time.Time) (process *Process) {
 	// search blocked processes first
 	for process = range s.blocked {
-		if err := process.ctx.Err(); err != nil {
+		if process.ctx.Err() != nil {
 			s.blocked.Remove(process)
-			process.terminate(ErrContextExpired{err})
+			process.terminate(ErrContextExpired{process.ctx})
 			continue
 		}
 		readiness := process.readiness(s.queuedProcesses())
@@ -234,11 +235,11 @@ func (s *Scheduler) findRunnableProcess(now time.Time) (process *Process) {
 			return nil
 		}
 		process = s.scheduled.Pop()
+		if process.ctx.Err() != nil {
+			process.terminate(ErrContextExpired{process.ctx})
+			continue
+		}
 		if process.runAt.After(now) {
-			if err := process.ctx.Err(); err != nil {
-				process.terminate(ErrContextExpired{err})
-				continue
-			}
 			s.scheduled.Push(process)
 			return nil
 		}
