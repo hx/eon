@@ -9,11 +9,11 @@ import (
 
 type customDelegate struct{}
 
-func (d customDelegate) JobScheduled(process *eon.Process)                        {}
-func (d customDelegate) JobBlocked(process *eon.Process, blockers []*eon.Process) {}
-func (d customDelegate) JobStarting(process *eon.Process)                         { _ = fmt.Sprintf("%#v", struct{}{}) }
-func (d customDelegate) JobProgressed(process *eon.Process, payload any)          {}
-func (d customDelegate) JobEnded(process *eon.Process, err error)                 {}
+func (d customDelegate) JobScheduled(*eon.Process)               {}
+func (d customDelegate) JobBlocked(*eon.Process, []*eon.Process) {}
+func (d customDelegate) JobStarting(*eon.Process)                { _ = fmt.Sprintf("%#v", struct{}{}) }
+func (d customDelegate) JobProgressed(*eon.Process, any)         {}
+func (d customDelegate) JobEnded(*eon.Process, error)            {}
 
 // -benchtime=4s -count 3
 // goos: darwin
