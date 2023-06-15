@@ -18,7 +18,7 @@ func (d customDelegate) JobEnded(process *eon.Process, err error)               
 // -benchtime=4s -count 3
 // goos: darwin
 // goarch: amd64
-// pkg: github.com/hx/midground/events
+// pkg: github.com/hx/eon/events
 // cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
 // BenchmarkDelegation/composed_delegate-12         	32072440	       142.9 ns/op
 // BenchmarkDelegation/composed_delegate-12         	33684553	       142.1 ns/op

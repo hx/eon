@@ -2,7 +2,7 @@ package events
 
 import "github.com/hx/eon"
 
-// Delegate is a midground.Delegate implementation that allows each event handler to be optionally specified as an
+// Delegate is an eon.Delegate implementation that allows each event handler to be optionally specified as an
 // anonymous function.
 type Delegate struct {
 	Scheduled  func(process *eon.Process)

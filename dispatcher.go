@@ -67,7 +67,7 @@ allow for changes to the value of Dispatcher.Delegate.
 
 goos: darwin
 goarch: amd64
-pkg: github.com/hx/midground
+pkg: github.com/hx/eon
 cpu: Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz
 BenchmarkDelegation/single_depth/notify-12  	23344108	        98.32 ns/op
 BenchmarkDelegation/single_depth/notify-12  	24168766	        97.15 ns/op

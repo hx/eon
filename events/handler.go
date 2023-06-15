@@ -10,7 +10,7 @@ type handlerFuncs[T any] struct {
 	mutex sync.RWMutex
 }
 
-// Handler is a midground.Delegate implementation that allows discreet event handlers to be added and removed at any
+// Handler is an eon.Delegate implementation that allows discreet event handlers to be added and removed at any
 // time.
 //
 // Handler functions are run in the order in which they were added.
@@ -41,31 +41,31 @@ func addHandler[T any](handler T, collection *handlerFuncs[T]) (remove func()) {
 	}
 }
 
-// OnScheduled adds a handler for when a midground.Process is scheduled. The returned remove function can be used to
+// OnScheduled adds a handler for when an eon.Process is scheduled. The returned remove function can be used to
 // remove the handler.
 func (h *Handler) OnScheduled(fn func(process *eon.Process)) (remove func()) {
 	return addHandler(fn, &h.scheduled)
 }
 
-// OnBlocked adds a handler for when a midground.Process is blocked. The returned remove function can be used to
+// OnBlocked adds a handler for when an eon.Process is blocked. The returned remove function can be used to
 // remove the handler.
 func (h *Handler) OnBlocked(fn func(process *eon.Process, blockers []*eon.Process)) (remove func()) {
 	return addHandler(fn, &h.blocked)
 }
 
-// OnStarting adds a handler for when a midground.Process is starting. The returned remove function can be used to
+// OnStarting adds a handler for when an eon.Process is starting. The returned remove function can be used to
 // remove the handler.
 func (h *Handler) OnStarting(fn func(process *eon.Process)) (remove func()) {
 	return addHandler(fn, &h.starting)
 }
 
-// OnProgressed adds a handler for when a midground.Process progresses. The returned remove function can be used to
+// OnProgressed adds a handler for when an eon.Process progresses. The returned remove function can be used to
 // remove the handler.
 func (h *Handler) OnProgressed(fn func(process *eon.Process, payload any)) (remove func()) {
 	return addHandler(fn, &h.progressed)
 }
 
-// OnEnded adds a handler for when a midground.Process ends. The returned remove function can be used to
+// OnEnded adds a handler for when an eon.Process ends. The returned remove function can be used to
 // remove the handler.
 func (h *Handler) OnEnded(fn func(process *eon.Process, err error)) (remove func()) {
 	return addHandler(fn, &h.ended)

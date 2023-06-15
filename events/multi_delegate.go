@@ -2,7 +2,7 @@ package events
 
 import "github.com/hx/eon"
 
-// MultiDelegate is a midground.Delegate implementation that re-sends notifications to multiple delegates.
+// MultiDelegate is an eon.Delegate implementation that re-sends notifications to multiple delegates.
 type MultiDelegate []eon.Delegate
 
 func (m MultiDelegate) JobScheduled(process *eon.Process) {
